@@ -84,7 +84,3 @@ CUPI/
 3.  **Buy**: Click the **+** button on any stock card, enter quantity, and confirm.
 4.  **Track**: Switch to the "Dashboard" tab to watch your portfolio grow (or shrink!) in real-time.
 5.  **Sell**: Click the **X** button on a stock in your portfolio to sell some or all shares.
-
----
-
-**Developed for the Advanced Agentic Coding Project.**
