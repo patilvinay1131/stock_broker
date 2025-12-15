@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard | Stock Broker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Ionicons -->
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body style="display: block;"> <!-- Override flex center -->
+
+  <div class="navbar">
+    <div style="padding-left: 2rem; font-weight: bold; font-size: 1.2rem;">
+      Stock Broker
+    </div>
+
+    <div class="nav-links">
+      <a class="nav-link" data-tab="stocks" onclick="switchTab('stocks')">Stocks</a>
+      <a class="nav-link active" data-tab="portfolio" onclick="switchTab('portfolio')">Dashboard</a>
+    </div>
+
+    <div style="padding-right: 2rem; display: flex; align-items: center; gap: 1rem;">
+      <span id="user-email" style="font-size: 0.9rem; color: var(--text-secondary);"></span>
+      <button class="secondary btn-logout" onclick="logout()" style="padding: 8px 16px;">Logout</button>
+    </div>
+  </div>
+
+  <div class="dashboard-container" style="margin: 0 auto;">
+
+    <!-- VIEW: STOCKS (Market Overview) -->
+    <div id="view-stocks" class="hidden" style="width: 100%;">
+      <div class="glass-card" style="max-width: 100%;">
+        <h3>Stocks</h3>
+        <div id="market-grid" class="stock-grid" style="margin-top: 1rem;">
+          <!-- All Stocks Injected Here -->
+        </div>
+      </div>
+    </div>
+
+
+
+    <!-- VIEW: PORTFOLIO (User Subscriptions) -->
+    <div id="view-portfolio" class="hidden" style="width: 100%;">
+      <!-- Portfolio Overview -->
+      <div class="glass-card" style="max-width: 100%; padding: 2rem;">
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+          <h2 style="margin: 0; font-size: 1.5rem;">Total Investment</h2>
+        </div>
+
+        <div class="stats-container">
+          <div>
+            <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">Invested Value</div>
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+              <span id="port-invested" style="font-weight: 600; font-size: 1.5rem;">$0.00</span>
+              <!-- Placeholder fixed growth for demo or calc later -->
+              <!-- <span style="color: var(--success-color); font-size: 0.9rem;">1.22% <ion-icon name="caret-up-outline"></ion-icon></span> -->
+            </div>
+          </div>
+          <div>
+            <div style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px;">Total Returns</div>
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+              <span id="port-current" style="font-weight: 600; font-size: 1.5rem;">$0.00</span>
+              <span id="port-pnl-percent"
+                style="font-weight: 500; font-size: 0.9rem; color: var(--success-color);">+0.00%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Portfolio Chart -->
+        <div style="height: 300px; width: 100%;">
+          <canvas id="portfolio-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Stock Grid -->
+      <div id="stock-grid" class="stock-grid" style="margin-top: 2rem;">
+        <!-- Cards injected here -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BUY MODAL -->
+  <div id="buy-modal" class="modal-overlay">
+    <div class="glass-card" style="max-width: 350px;">
+      <h3>Add to Dashboard</h3>
+      <p id="modal-ticker-display" style="color: var(--primary-color); font-size: 1.2rem; font-weight: bold;">--</p>
+
+      <label style="font-size: 0.9rem; color: var(--text-secondary);">Quantity</label>
+      <input type="number" id="modal-quantity" value="1" min="1" style="font-size: 1.2rem;">
+
+      <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+        <button class="secondary" onclick="closeModal()">Cancel</button>
+        <button onclick="confirmAddStock()">Add Stock</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SELL MODAL -->
+  <div id="sell-modal" class="modal-overlay">
+    <div class="glass-card" style="max-width: 350px;">
+      <h3>Remove Stock</h3>
+      <p id="sell-modal-ticker-display" style="color: var(--error-color); font-size: 1.2rem; font-weight: bold;">--</p>
+      <p id="sell-modal-current-qty" style="color: var(--text-secondary); font-size: 0.9rem;">Current Holding: 0</p>
+
+      <label style="font-size: 0.9rem; color: var(--text-secondary);">Quantity to Remove</label>
+      <input type="number" id="sell-modal-quantity" value="1" min="1" style="font-size: 1.2rem;">
+
+      <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+        <button class="secondary" onclick="closeSellModal()">Cancel</button>
+        <button onclick="confirmSellStock(false)" style="background: var(--error-color);">Remove Qty</button>
+        <button onclick="confirmSellStock(true)"
+          style="width: 100%; margin-top: 0.5rem; background: transparent; border: 1px solid var(--error-color); color: var(--error-color);">Remove
+          All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Logic -->
+  <script type="module">
+    import { auth, db } from './firebase-config.js';
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { doc, getDoc, setDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initMarketSimulation } from './market-simulation.js';
+
+    // Start Market Logic (Client-side simulation)
+    initMarketSimulation();
+
+    let currentUser = null;
+    let subscriptions = [];
+    let unsubscribeListeners = {};
+    let allStocksUnsub = null;
+    let selectedTickerForModal = null;
+    let portfolioChart = null;
+    let currentPrices = {};
+
+    // --- TOAST LOGIC ---
+    window.showToast = (msg, type = 'success') => {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+
+      const iconName = type === 'success' ? 'checkmark-circle' : 'trash-bin'; // changed icon for remove/error
+      el.innerHTML = `<ion-icon name="${iconName}" size="large"></ion-icon> <span>${msg}</span>`;
+
+      container.appendChild(el);
+      // Trigger reflow
+      el.offsetHeight;
+      el.classList.add('show');
+
+      setTimeout(() => {
+        el.classList.remove('show');
+        setTimeout(() => el.remove(), 300);
+      }, 3000);
+    }
+
+    // --- MODAL LOGIC ---
+    window.openBuyModal = (ticker) => {
+      selectedTickerForModal = ticker;
+      document.getElementById('modal-ticker-display').innerText = ticker;
+      document.getElementById('modal-quantity').value = 1;
+      document.getElementById('buy-modal').classList.add('open');
+    }
+
+    window.closeModal = () => {
+      document.getElementById('buy-modal').classList.remove('open');
+      selectedTickerForModal = null;
+    }
+
+    // --- SELL MODAL LOGIC ---
+    window.openSellModal = (ticker) => {
+      const stock = subscriptions.find(s => s.symbol === ticker);
+      if (!stock) return;
+
+      selectedTickerForModal = ticker;
+      document.getElementById('sell-modal-ticker-display').innerText = ticker;
+      document.getElementById('sell-modal-current-qty').innerText = `Current Holding: ${stock.qty}`;
+      document.getElementById('sell-modal-quantity').value = 1;
+      document.getElementById('sell-modal-quantity').max = stock.qty;
+      document.getElementById('sell-modal').classList.add('open');
+    }
+
+    window.closeSellModal = () => {
+      document.getElementById('sell-modal').classList.remove('open');
+      selectedTickerForModal = null;
+    }
+
+    window.confirmSellStock = async (removeAll) => {
+      const stock = subscriptions.find(s => s.symbol === selectedTickerForModal);
+      const qtyToRemove = parseInt(document.getElementById('sell-modal-quantity').value);
+
+      if (!stock || (!removeAll && qtyToRemove <= 0)) return;
+
+      if (removeAll || qtyToRemove >= stock.qty) {
+        // Remove Full
+        subscriptions = subscriptions.filter(s => s.symbol !== selectedTickerForModal);
+        const card = document.getElementById(`card-${selectedTickerForModal}-stock-grid`);
+        if (card) card.remove();
+        delete currentPrices[selectedTickerForModal];
+        showToast(`Successfully Removed!!`, 'error');
+      } else {
+        // Partial Remove
+        // Update Invested Amount (Average Cost Basis propoprtion)
+        // New Invested = Old Invested * (Remaining Qty / Old Qty)
+        const remainingQty = stock.qty - qtyToRemove;
+        stock.invested = stock.invested * (remainingQty / stock.qty);
+        stock.qty = remainingQty;
+
+        // Update UI
+        const qtyEl = document.getElementById(`qty-${stock.symbol}-stock-grid`);
+        if (qtyEl) qtyEl.innerText = `${stock.qty} shares`;
+        showToast(`Successfully Removed!!`, 'success');
+      }
+
+      await saveSubscriptions();
+      updatePortfolioStats();
+      closeSellModal();
+    }
+
+    window.confirmAddStock = async () => {
+      const qty = parseInt(document.getElementById('modal-quantity').value);
+      if (!selectedTickerForModal || qty <= 0) return;
+
+      // Fetch Current Price for Cost Basis
+      const stockRef = doc(db, "stocks", selectedTickerForModal);
+      const stockSnap = await getDoc(stockRef);
+      let currentPrice = 0;
+      if (stockSnap.exists()) currentPrice = stockSnap.data().price;
+
+      // Calculate Invested
+      const invested = parseFloat((qty * currentPrice).toFixed(2));
+
+      // Check if already exists
+      const existing = subscriptions.find(s => s.symbol === selectedTickerForModal);
+
+      if (existing) {
+        existing.qty += qty;
+        existing.invested = (existing.invested || 0) + invested; // Accumulate cost
+      } else {
+        subscriptions.push({ symbol: selectedTickerForModal, qty: qty, invested: invested });
+      }
+
+      await saveSubscriptions();
+
+      addStockCard(selectedTickerForModal, 'stock-grid', true, existing ? existing.qty : qty);
+
+      showToast(`Successfully Added!!`, 'success');
+      closeModal();
+    }
+
+    // Tabs Logic
+    window.switchTab = (tabName) => {
+      // Update Nav UI
+      document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+      // Use data-tab for robust matching
+      const activeLink = document.querySelector(`.nav-link[data-tab="${tabName}"]`);
+      if (activeLink) activeLink.classList.add('active');
+
+      // Update View Visibility
+      ['stocks', 'portfolio'].forEach(t => {
+        const el = document.getElementById(`view-${t}`);
+        if (t === tabName) {
+          el.classList.remove('hidden');
+          if (t === 'portfolio') {
+            setTimeout(() => initPortfolioChart(), 0); // Defer to ensure visible for canvas
+          }
+        } else {
+          el.classList.add('hidden');
+        }
+      });
+
+      // Lifecycle Hooks
+      if (tabName === 'stocks') {
+        loadAllStocks();
+      } else {
+        if (allStocksUnsub) { allStocksUnsub(); allStocksUnsub = null; }
+      }
+    };
+
+    // Auth Guard
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        currentUser = user;
+        document.getElementById('user-email').textContent = user.email;
+        await loadSubscriptions();
+
+        // Default View
+        switchTab('portfolio');
+      } else {
+        window.location.href = 'index.html';
+      }
+    });
+
+    window.logout = () => {
+      signOut(auth);
+    };
+
+    // No dropdown logic needed anymore
+    window.subscribe = async () => { };
+
+    async function loadSubscriptions() {
+      const userRef = doc(db, "users", currentUser.uid);
+      const snap = await getDoc(userRef);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.subscriptions && data.subscriptions.length > 0) {
+          if (typeof data.subscriptions[0] === 'string') {
+            subscriptions = data.subscriptions.map(s => ({ symbol: s, qty: 1, invested: 0 }));
+          } else {
+            subscriptions = data.subscriptions;
+          }
+        } else {
+          subscriptions = [];
+        }
+      } else {
+        subscriptions = [];
+      }
+
+      const grid = document.getElementById('stock-grid');
+      grid.innerHTML = '';
+      subscriptions.forEach(sub => addStockCard(sub.symbol, 'stock-grid', true, sub.qty));
+    }
+
+    async function saveSubscriptions() {
+      const userRef = doc(db, "users", currentUser.uid);
+      await setDoc(userRef, { subscriptions: subscriptions }, { merge: true });
+    }
+
+    // --- RENDER LOGIC ---
+
+    function addStockCard(ticker, containerId, isPortfolio = false, qty = 0) {
+      if (document.getElementById(`card-${ticker}-${containerId}`)) {
+        const qtyEl = document.getElementById(`qty-${ticker}-${containerId}`);
+        if (qtyEl && qty > 0) qtyEl.innerText = `${qty} shares`;
+        return;
+      }
+
+      const grid = document.getElementById(containerId);
+
+      // Create Card Element
+      const card = document.createElement('div');
+      card.className = 'stock-card';
+      card.id = `card-${ticker}-${containerId}`;
+
+      const actionButton = isPortfolio
+        ? `<button onclick="openSellModal('${ticker}')" class="icon-btn icon-btn-remove"><ion-icon name="close-circle-outline" size="large"></ion-icon></button>`
+        : `<button onclick="openBuyModal('${ticker}')" class="icon-btn icon-btn-add"><ion-icon name="add-circle" size="large"></ion-icon></button>`;
+
+      const qtyDisplay = isPortfolio
+        ? `<div id="qty-${ticker}-${containerId}" style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">${qty} shares</div>`
+        : ``;
+
+      let html = `
+                <div class="stock-header">
+                    <span class="stock-symbol">${ticker}</span>
+                    ${actionButton}
+                </div>
+                ${qtyDisplay}
+                <div class="stock-price" id="price-${ticker}-${containerId}">Loading...</div>
+                <div class="stock-trend" id="trend-${ticker}-${containerId}">--</div>
+                
+                <!-- Graph Container -->
+                <div style="height: 100px; width: 100%; margin-top: 1rem;">
+                    <canvas id="chart-${ticker}-${containerId}"></canvas>
+                </div>
+            `;
+      card.innerHTML = html;
+      grid.appendChild(card);
+
+      setTimeout(() => initChart(ticker, containerId), 0);
+      listenToStock(ticker, containerId);
+    }
+
+    function initChart(ticker, containerId) {
+      if (!window.stockCharts) window.stockCharts = {};
+      const canvas = document.getElementById(`chart-${ticker}-${containerId}`);
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      const chartKey = `${ticker}-${containerId}`;
+
+      window.stockCharts[chartKey] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Price',
+            data: [],
+            borderColor: '#bb86fc',
+            backgroundColor: 'rgba(187, 134, 252, 0.1)',
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: { x: { display: false }, y: { display: false } },
+          animation: false
+        }
+      });
+    }
+
+    function initPortfolioChart() {
+      if (portfolioChart) return;
+      const canvas = document.getElementById('portfolio-chart');
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+      gradient.addColorStop(0, 'rgba(0, 230, 118, 0.2)');
+      gradient.addColorStop(1, 'rgba(0, 230, 118, 0.0)');
+
+      portfolioChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Total Value',
+            data: [],
+            borderColor: '#00e676', // Success color
+            backgroundColor: gradient,
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 0,
+            pointHoverRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { display: false },
+            y: {
+              display: true,
+              position: 'right',
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              border: { display: false }
+            }
+          },
+          animation: false,
+          interaction: {
+            mode: 'index',
+            intersect: false,
+          }
+        }
+      });
+    }
+
+    window.removeStock = async (ticker) => {
+      subscriptions = subscriptions.filter(s => s.symbol !== ticker);
+      await saveSubscriptions();
+      const card = document.getElementById(`card-${ticker}-stock-grid`);
+      if (card) card.remove();
+      // Recalc stats
+      delete currentPrices[ticker];
+      updatePortfolioStats();
+      showToast(`Removed ${ticker} from Portfolio`, 'error');
+    }
+
+    function listenToStock(ticker, containerId) {
+      onSnapshot(doc(db, "stocks", ticker), (doc) => {
+        if (!doc.exists()) return;
+        const data = doc.data();
+        updateCardUI(ticker, data, containerId);
+      });
+    }
+
+    function updateCardUI(ticker, data, containerId) {
+      // Store Global Price for Portfolio Calc
+      currentPrices[ticker] = data.price;
+
+      // Throttle Portfolio Update? (Every stock update triggers this)
+      updatePortfolioStats();
+
+      const priceEl = document.getElementById(`price-${ticker}-${containerId}`);
+      const trendEl = document.getElementById(`trend-${ticker}-${containerId}`);
+      const card = document.getElementById(`card-${ticker}-${containerId}`);
+
+      if (!priceEl) return;
+
+      const isUp = data.trend === 'up';
+
+      // Flash Effect
+      card.style.animation = 'none';
+      card.offsetHeight; /* trigger reflow */
+      card.style.animation = isUp ? 'flashGreen 0.5s' : 'flashRed 0.5s';
+
+      priceEl.innerText = `$${data.price.toFixed(2)}`;
+      priceEl.style.color = isUp ? 'var(--success-color)' : 'var(--error-color)';
+
+      trendEl.innerHTML = isUp
+        ? `<ion-icon name="trending-up"></ion-icon> +$${Math.abs(data.change || 0).toFixed(2)}`
+        : `<ion-icon name="trending-down"></ion-icon> -$${Math.abs(data.change || 0).toFixed(2)}`;
+      trendEl.className = `stock-trend ${data.trend}`;
+
+      // Update Chart
+      const chartKey = `${ticker}-${containerId}`;
+      if (window.stockCharts && window.stockCharts[chartKey]) {
+        const chart = window.stockCharts[chartKey];
+        const now = new Date().toLocaleTimeString();
+
+        // Keep last 20 points
+        if (chart.data.labels.length > 20) {
+          chart.data.labels.shift();
+          chart.data.datasets[0].data.shift();
+        }
+
+        chart.data.labels.push(now);
+        chart.data.datasets[0].data.push(data.price);
+
+        // Color based on trend
+        chart.data.datasets[0].borderColor = isUp ? '#00e676' : '#ff1744';
+        chart.data.datasets[0].backgroundColor = isUp ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 23, 68, 0.1)';
+
+        chart.update('none'); // 'none' for smooth animation
+      }
+    }
+
+    function updatePortfolioStats() {
+      if (subscriptions.length === 0) {
+        document.getElementById('port-current').innerText = `$0.00`;
+        document.getElementById('port-invested').innerText = `$0.00`;
+        const pnlEl = document.getElementById('port-pnl-percent');
+        if (pnlEl) {
+          pnlEl.innerText = `0.00%`;
+          pnlEl.style.color = 'var(--text-secondary)';
+        }
+        if (portfolioChart) {
+          portfolioChart.data.labels = [];
+          portfolioChart.data.datasets[0].data = [];
+          portfolioChart.update('none');
+        }
+        return;
+      }
+
+      let totalCurrent = 0;
+      let totalInvested = 0;
+
+      subscriptions.forEach(sub => {
+        const price = currentPrices[sub.symbol] || 0;
+        totalCurrent += price * sub.qty;
+        totalInvested += (sub.invested || 0);
+      });
+
+      // Update Text
+      const currentEl = document.getElementById('port-current');
+      const investedEl = document.getElementById('port-invested');
+      const pnlEl = document.getElementById('port-pnl-percent');
+
+      if (currentEl && investedEl && pnlEl) {
+        currentEl.innerText = `$${totalCurrent.toFixed(2)}`;
+        investedEl.innerText = `$${totalInvested.toFixed(2)}`;
+
+        const pnlValue = totalCurrent - totalInvested;
+        let pnlPercent = 0;
+        if (totalInvested > 0) {
+          pnlPercent = (pnlValue / totalInvested) * 100;
+        }
+
+        const isUp = pnlValue >= 0;
+        const icon = isUp ? '<ion-icon name="caret-up-outline"></ion-icon>' : '<ion-icon name="caret-down-outline"></ion-icon>';
+
+        // Format: $22,543.87 10.14% ^
+        // Re-using pnlEl for the percent part next to Current Value as per design request?
+        // Design has "Total Returns" then the value. Wait, image shows:
+        // [Invested Value] $1279 1.22%^   [Total Returns] $22543 10.14%^
+        // My HTML structure:
+        // Div 1: Invested Value | $0.00
+        // Div 2: Total Returns  | $0.00 +0.00%
+
+        // I will map Total Returns to be the Current Value (as per image label seems to imply Total Portfolio Value is big?)
+        // Actually "Total Returns" usually means Profit. But in the image "$22,543" vs Invested "$1,279" implies 22k is likely the Total Value (or massive profit). 
+        // Let's assume the Right Box is "Current Value" and "Percentage Return".
+
+        pnlEl.innerHTML = `${Math.abs(pnlPercent).toFixed(2)}% ${icon}`;
+        pnlEl.style.color = isUp ? 'var(--success-color)' : 'var(--error-color)';
+      }
+
+      // Update Chart
+      if (portfolioChart) {
+        const now = new Date().toLocaleTimeString();
+        if (portfolioChart.data.labels.length > 50) { // More points for smoother graph
+          portfolioChart.data.labels.shift();
+          portfolioChart.data.datasets[0].data.shift();
+        }
+
+        // Dynamic Grading based on overall PnL
+        const pnlValue = totalCurrent - totalInvested;
+        const isUp = pnlValue >= 0;
+        const color = isUp ? '#00e676' : '#ff1744';
+        const ctx = portfolioChart.ctx;
+
+        // Dynamic Gradient
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        if (isUp) {
+          gradient.addColorStop(0, 'rgba(0, 230, 118, 0.2)');
+          gradient.addColorStop(1, 'rgba(0, 230, 118, 0.0)');
+        } else {
+          gradient.addColorStop(0, 'rgba(255, 23, 68, 0.2)');
+          gradient.addColorStop(1, 'rgba(255, 23, 68, 0.0)');
+        }
+
+        portfolioChart.data.datasets[0].borderColor = color;
+        portfolioChart.data.datasets[0].backgroundColor = gradient;
+
+        portfolioChart.data.labels.push(now);
+        portfolioChart.data.datasets[0].data.push(totalCurrent);
+        portfolioChart.update('none');
+      }
+    }
+
+    // --- MARKET OVERVIEW LOGIC ---
+    function loadAllStocks() {
+      const marketGrid = document.getElementById('market-grid');
+      marketGrid.innerHTML = ''; // Re-render to ensure fresh buttons
+      ['GOOG', 'TSLA', 'AMZN', 'META', 'NVDA'].forEach(ticker => {
+        addStockCard(ticker, 'market-grid', false);
+      });
+    }
+
+  </script>
+</body>
+
+</html>

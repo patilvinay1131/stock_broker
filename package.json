@@ -1,0 +1,15 @@
+{
+    "name": "stock-broker-dashboard",
+    "version": "1.0.0",
+    "description": "Premium Stock Broker Client with Firebase",
+    "main": "index.html",
+    "scripts": {
+        "start": "npx serve public"
+    },
+    "dependencies": {
+        "firebase": "^10.0.0"
+    },
+    "devDependencies": {
+        "serve": "^14.0.0"
+    }
+}

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up | Stock Broker</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <div class="glass-card">
+        <h1 class="text-center">Create Account</h1>
+        <p class="text-center" style="color: var(--text-secondary); margin-bottom: 2rem;">
+            Join Stock Broker today
+        </p>
+
+        <form id="signupForm">
+            <label for="email" style="display: block; font-size: 0.9rem; color: var(--text-secondary);">Email
+                Address</label>
+            <input type="email" id="email" placeholder="name@example.com" required>
+
+            <label for="password"
+                style="display: block; font-size: 0.9rem; color: var(--text-secondary);">Password</label>
+            <input type="password" id="password" placeholder="••••••••" required>
+
+            <button type="submit">Sign Up</button>
+        </form>
+
+        <p id="error-message" class="text-center mt-4" style="color: var(--error-color); font-size: 0.9rem;"></p>
+
+        <div class="text-center mt-4">
+            <a href="index.html" style="color: var(--primary-color); text-decoration: none;">Already have an account?
+                Sign In</a>
+        </div>
+    </div>
+
+    <!-- Logic -->
+    <script type="module">
+        import { auth } from './firebase-config.js';
+        import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const signupForm = document.getElementById('signupForm');
+        const errorMsg = document.getElementById('error-message');
+
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            errorMsg.textContent = "Creating Account...";
+
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                window.location.href = 'dashboard.html';
+            } catch (error) {
+                errorMsg.textContent = error.message;
+            }
+        });
+    </script>
+</body>
+
+</html>
